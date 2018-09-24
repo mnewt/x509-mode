@@ -41,8 +41,32 @@ current buffer to openssl with OPENSSL-ARGUMENTS. E.g. x509 -text"
     (apply 'call-process process-args)
     (goto-char (point-min))
     (setq-local x509-args args)))
-  
 
+(defun x509-as-asn1(&optional edit)
+  (interactive "P")
+  (let* ((args-as-string (combine-and-quote-strings x509-args))
+         (inform (and (string-match "-inform \\w+" args-as-string)
+                      (match-string 0 args-as-string)))
+         (infile (and (string-match "-in [^ ]+" args-as-string)
+                      (match-string 0 args-as-string)))
+         (args (append (list "asn1parse")
+                       (split-string-and-unquote inform)
+                       (split-string-and-unquote infile)))
+         (process-args (append (list x509-openssl-cmd nil t nil)
+                               args)))
+    (if edit
+        (setq args (split-string-and-unquote
+                    (read-from-minibuffer
+                     "openssl args: "
+                     (combine-and-quote-strings args)
+                     nil nil 'x509--viewasn1-history))
+              process-args (append (list x509-openssl-cmd nil t nil) args)))
+    (message "inform: %s, infile: %s, process-args: %s" inform infile process-args)
+    (erase-buffer)
+    (apply 'call-process process-args)
+    (goto-char (point-min))
+    (x509-asn1-mode)
+    (setq-local x509-args args)))
 
 
 ;;;###autoload
