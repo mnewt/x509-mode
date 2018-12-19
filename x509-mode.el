@@ -257,6 +257,7 @@ Skip blank lines and comment lines. Return list."
 \\{x509-mode-map}"
   (set (make-local-variable 'font-lock-defaults) '(x509-font-lock-keywords))
   (define-key x509-mode-map "q" 'x509-mode--kill-buffer)
+  (define-key x509-mode-map "r" 'x509-mode-re-run)
   (x509--mark-browse-url-links))
 
 (defun x509--buffer-encoding()
@@ -267,20 +268,19 @@ Skip blank lines and comment lines. Return list."
           "PEM"
         "DER"))))
 
-(defun x509--process-buffer(openssl-arguments)
-  "Create new buffer named \"*x-[buffer-name]*\" and pass content of
-current buffer to openssl with OPENSSL-ARGUMENTS. E.g. x509 -text"
+(defun x509--build-command (openssl-arguments buf)
+  (append (list x509-openssl-cmd nil buf nil)
+          openssl-arguments))
+
+(defun x509--process-buffer(process-arguments buf)
+  "Create new buffer named \"*x-[buffer-name]*\".
+Insert result of call ing proces with PROCES-ARGUMENTS."
   (interactive)
-  (let* ((buf (generate-new-buffer (generate-new-buffer-name
-                                    (format "*x-%s*" (buffer-name)))))
-         (args (append
-                (list (point-min) (point-max) x509-openssl-cmd nil buf nil)
-                openssl-arguments)))
-    (apply 'call-process-region args)
-    (switch-to-buffer buf)
-    (goto-char (point-min))
-    (set-buffer-modified-p nil)
-    (setq buffer-read-only t)))
+  (apply 'call-process process-arguments)
+  (switch-to-buffer buf)
+  (goto-char (point-min))
+  (set-buffer-modified-p nil)
+  (setq buffer-read-only t))
 
 (defun x509--read-arguments (prompt default history)
   "Prompt, using PROMPT, for arguments if \\[universal-argument] prefix.
@@ -301,12 +301,36 @@ Display result in another buffer.
 With \\[universal-argument] prefix, you can edit the command arguements."
   (interactive (x509--read-arguments
                 "x509 args: "
-                (format "x509 -nameopt utf8 -text -noout -inform %s"
-                        (x509--buffer-encoding))
+                (format "x509 -nameopt utf8 -text -noout -inform %s -in %s"
+                        (x509--buffer-encoding)
+                        (buffer-file-name))
                 'x509--viewcert-history))
-  (x509--process-buffer (split-string-and-unquote args))
-  (x509-mode))
+  (let* ((file-name (buffer-file-name))
+        (buf (generate-new-buffer (generate-new-buffer-name
+                                   (format "*x-%s*" (buffer-name)))))
+        (process-args (x509--build-command
+                       (split-string-and-unquote args) buf)))
+    (x509--process-buffer process-args buf)
+    (x509-mode)
+    (make-variable-buffer-local 'x509--file-name)
+    (setq-local x509--file-name file-name)
+    (make-variable-buffer-local 'x509--process-args)
+    (setq-local x509--args args)))
 
+(defun x509-mode-re-run(args)
+  (interactive (list (read-from-minibuffer
+                      "openssl args: " x509--args nil nil
+                      'x509--viewcert-history)))
+  (let ((process-args (x509--build-command
+                       (split-string-and-unquote args) (current-buffer))))
+    (setq buffer-read-only nil)
+    (erase-buffer)
+    (apply 'call-process process-args)
+    (goto-char (point-min))
+    (set-buffer-modified-p nil)
+    (setq buffer-read-only t)
+    (setq-local x509--args args)))
+    
 (defvar x509--viewcrl-history nil "History list for x509-viewcrl.")
 
 ;;;###autoload
