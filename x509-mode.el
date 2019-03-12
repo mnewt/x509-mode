@@ -2,7 +2,7 @@
 
 ;; Copyright (C) 2017 Fredrik Axelsson <f.axelsson@gmai.com>
 
-;; Author: Fredrik Axelsson <f.axelsson@gmai.com>
+;; Author: Fredrik Axelsson <f.axelsson@gmail.com>
 ;; Homepage: https://github.com/jobbflykt/x509-mode
 ;; Package-Requires: ((emacs "24.1") (cl-lib "0.5"))
 
@@ -277,8 +277,7 @@ Return string \"PEM\" or \"DER\"."
           openssl-arguments))
 
 (defun x509--process-buffer(process-arguments buf)
-  "Create new buffer named \"*x-[buffer-name]*\".
-Insert result of calling proces with PROCES-ARGUMENTS."
+  "Call process with PROCESS-ARGUMENTS and insert output into BUF."
   (interactive)
   (apply 'call-process process-arguments)
   (switch-to-buffer buf)
@@ -306,13 +305,13 @@ another buffer.
 With \\[universal-argument] prefix, you can edit the command arguements."
   (interactive (x509--read-arguments
                 "x509 args: "
-                (format "x509 -nameopt utf8 -text -noout -inform %s -in %s"
+                (format "x509 -nameopt utf8 -text -noout -inform %s -in \"%s\""
                         (x509--buffer-encoding)
                         (buffer-file-name))
                 'x509--viewcert-history))
   (let* ((file-name (buffer-file-name))
         (buf (generate-new-buffer (generate-new-buffer-name
-                                   (format "*x-%s*" (buffer-name)))))
+                                   (format "*x509-%s*" (buffer-name)))))
         (process-args (x509--build-command
                        (split-string-and-unquote args) buf)))
     (x509--process-buffer process-args buf)
@@ -370,10 +369,6 @@ With \\[universal-argument] prefix, you can edit the command arguements."
 
 (defvar x509--viewkey-history nil "History list for x509-viewkey.")
 
-;; Special. older openssl pkey cannot read from stdin so we need to use
-;; buffer's file.
-;; FIXME: Create a temporary file with buffer content and use that as input to
-;; pkey.
 ;;;###autoload
 (defun x509-viewkey (&optional args)
   "Display x509 private key using the OpenSSL pkey command.
@@ -386,8 +381,17 @@ For example to enter pass-phrase, add -passin pass:PASSPHRASE."
                 (format "pkey -text -noout -inform %s -in \"%s\""
                         (x509--buffer-encoding) (buffer-file-name))
                 'x509--viewkey-history))
-  (x509--process-buffer (split-string-and-unquote args))
-  (x509-mode))
+  (let* ((file-name (buffer-file-name))
+        (buf (generate-new-buffer (generate-new-buffer-name
+                                   (format "*x509-%s*" (buffer-name)))))
+        (process-args (x509--build-command
+                       (split-string-and-unquote args) buf)))
+    (x509--process-buffer process-args buf)
+    (x509-mode)
+    (make-variable-buffer-local 'x509--file-name)
+    (setq-local x509--file-name file-name)
+    (make-variable-buffer-local 'x509--process-args)
+    (setq-local x509--args args)))
 
 ;; ----------------------------------------------------------------------------
 ;; asn1-mode
@@ -444,9 +448,10 @@ For example to enter pass-phrase, add -passin pass:PASSPHRASE."
 (define-derived-mode x509-asn1-mode fundamental-mode "asn1"
   "Major mode for displaying openssl asn1parse output.
 
-\\{x509-mode-map}"
+\\{x509-asn1-mode-map}"
   (set (make-local-variable 'font-lock-defaults)
        '(x509-asn1-font-lock-keywords))
+  (define-key x509-asn1-mode-map "r" 'x509-asn1-mode-re-run)
   (define-key x509-asn1-mode-map "q" 'x509-mode--kill-buffer))
 
 (defvar x509--viewasn1-history nil "History list for x509-viewasn1.")
@@ -459,11 +464,35 @@ another buffer.
 
 With \\[universal-argument] prefix, you can edit the command arguements."
   (interactive (x509--read-arguments "asn1parse args: "
-                                     (format "asn1parse -inform %s"
-                                             (x509--buffer-encoding))
+                                     (format "asn1parse -inform %s -in \"%s\""
+                                             (x509--buffer-encoding)
+                                             (buffer-file-name))
                                      'x509--viewasn1-history))
-  (x509--process-buffer (split-string-and-unquote args))
-  (x509-asn1-mode))
+  (let* ((file-name (buffer-file-name))
+         (buf (generate-new-buffer (generate-new-buffer-name
+                                    (format "*asn1-%s*" (buffer-name)))))
+         (process-args (x509--build-command
+                        (split-string-and-unquote args) buf)))
+    (x509--process-buffer process-args buf)
+    (x509-asn1-mode)
+    (make-variable-buffer-local 'x509--file-name)
+    (setq-local x509--file-name file-name)
+    (make-variable-buffer-local 'x509--process-args)
+    (setq-local x509--args args)))
+
+(defun x509-asn1-mode-re-run(args)
+  (interactive (list (read-from-minibuffer
+                      "openssl args: " x509--args nil nil
+                      'x509--viewasn1-history)))
+  (let ((process-args (x509--build-command
+                       (split-string-and-unquote args) (current-buffer))))
+    (setq buffer-read-only nil)
+    (erase-buffer)
+    (apply 'call-process process-args)
+    (goto-char (point-min))
+    (set-buffer-modified-p nil)
+    (setq buffer-read-only t)
+    (setq-local x509--args args)))
 
 (provide 'x509-asn1-mode)
 (provide 'x509-mode)
