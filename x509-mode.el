@@ -40,8 +40,9 @@
 ;; Open a file containing a certificate, either PEM or DER encode.  Now
 ;; use M-x `x509-viewcert' to create a new buffer that displays the decoded
 ;; certificate.
-;; Use M-x `x509-viewcrl', M-X `x509-viewasn1', M-x `x509-viewkey' and M-x
-;; `x509-viewdh' in a similar manner.
+;; Use M-x `x509-viewcrl', M-X `x509-viewasn1', M-x `x509-viewkey', M-x
+;; `x509-viewreq', M-x `x509-verifycert', and M-x `x509-viewdh' in a similar
+;; manner.
 
 ;;; Code:
 
@@ -291,6 +292,22 @@ Return list with single argument string. "
       (list (read-from-minibuffer prompt default nil nil history))
     (list default)))
 
+(defvar x509--viewreq-history nil "History list for x509-viewreq.")
+
+;;;###autoload
+(defun x509-viewreq (&optional args)
+  "Parse current buffer as a certificate signing request file.
+Display result in another buffer.
+
+With \\[universal-argument] prefix, you can edit the command arguements."
+  (interactive (x509--read-arguments
+                "x509 args: "
+                (format "req -nameopt multiline,utf8 -text -inform %s"
+                        (x509--buffer-encoding))
+                'x509--viewreq-history))
+  (x509--process-buffer (split-string-and-unquote args))
+  (x509-mode))
+
 (defvar x509--viewcert-history nil "History list for x509-viewcert.")
 
 ;;;###autoload
@@ -301,10 +318,22 @@ Display result in another buffer.
 With \\[universal-argument] prefix, you can edit the command arguements."
   (interactive (x509--read-arguments
                 "x509 args: "
-                (format "x509 -nameopt utf8 -text -noout -inform %s"
                 (format "x509 -nameopt multiline,utf8 -text -noout -inform %s"
                         (x509--buffer-encoding))
                 'x509--viewcert-history))
+  (x509--process-buffer (split-string-and-unquote args))
+  (x509-mode))
+
+(defvar x509--verifycert-history nil "History list for x509-verifycert.")
+
+;;;###autoload
+(defun x509-verifycert (&optional args)
+  "Parse current buffer as a CRL file. Display result in another buffer.
+
+With \\[universal-argument] prefix, you can edit the command arguements."
+  (interactive (x509--read-arguments "crl args: "
+                                     "verify -verbose"
+                                     'x509--verifycert-history))
   (x509--process-buffer (split-string-and-unquote args))
   (x509-mode))
 

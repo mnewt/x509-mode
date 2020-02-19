@@ -16,6 +16,8 @@ To view certificates, CRLs, private keys Diffie-Hellman parameters and parsed AS
     M-x x509-viewcrl
     M-X x509-viewasn1
     M-x x509-viewkey
+    M-x x509-viewreq
+    M-x x509-verifycert
     M-x x509-viewdh
 
 The command line for all command can be edited with C-u prefix. Example:
@@ -68,7 +70,6 @@ x509-mode works with, for example, OpenSSL that comes with Git for Windows.
 **DH-params**
 
 ![CRL](https://github.com/jobbflykt/x509-mode/raw/master/screenshots/screenshot-dhparams.png)
-
 
 **ASN.1**
 
